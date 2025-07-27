@@ -12,6 +12,8 @@ import time
 import logging
 import sched
 import threading
+import os
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -24,7 +26,8 @@ app = Flask(__name__)
 viber = Api(BotConfiguration(
   name='PythonSampleBot',
   avatar='http://viber.com/avatar.jpg',
-  auth_token='YOUR_AUTH_TOKEN_HERE'
+  auth_token=os.environ['4f8311cf8da7de3e-9a2072694a3a99e9-f4716eb5f92d764a']
+
 ))
 
 @app.route('/', methods=['POST'])
