@@ -38,25 +38,22 @@ app.logger.debug(
 
 @app.route('/', methods=['POST'])
 def incoming():
-	logger.debug("received request. post data: {0}".format(request.get_data()))
+    viber_request = viber.parse_request(request.get_data())
+    if isinstance(viber_request, ViberMessageRequest):
+        user_text = viber_request.message.text.strip().lower()
 
-	viber_request = viber.parse_request(request.get_data().decode('utf8'))
+        # Προσαρμοσμένες απαντήσεις
+        if user_text in ['γεια', 'γειά', 'hello']:
+            reply_text = 'Γεια σου! Πώς μπορώ να σε βοηθήσω;'
+        elif user_text in ['αντίο', 'bye']:
+            reply_text = 'Καληνύχτα! Επικοινώνησε ξανά όταν θέλεις.'
+        else:
+            reply_text = 'Δεν σε κατάλαβα. Μπορείς να γράψεις "βοήθεια" για οδηγίες.'
 
-	if isinstance(viber_request, ViberMessageRequest):
-		message = viber_request.message
-		viber.send_messages(viber_request.sender.id, [
-			message
-		])
-	elif isinstance(viber_request, ViberConversationStartedRequest) \
-			or isinstance(viber_request, ViberSubscribedRequest) \
-			or isinstance(viber_request, ViberUnsubscribedRequest):
-		viber.send_messages(viber_request.sender.id, [
-			TextMessage(None, None, viber_request.get_event_type())
-		])
-	elif isinstance(viber_request, ViberFailedRequest):
-		logger.warn("client failed receiving message. failure: {0}".format(viber_request))
+        message = TextMessage(text=reply_text)
+        viber.send_messages(viber_request.sender.id, [message])
+    return Response(status=200)
 
-	return Response(status=200)
 
 def set_webhook(viber):
 	viber.set_webhook('https://mybotwebserver.com:8443/')
