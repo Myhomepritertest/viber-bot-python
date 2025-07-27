@@ -30,6 +30,8 @@ viber = Api(BotConfiguration(
 
 ))
 
+app.logger.debug(">>> VIBER_AUTH_TOKEN φορτώθηκε ως: %s", os.environ.get('4f8311cf8da7de3e-9a2072694a3a99e9-f4716eb5f92d764a']'))
+
 @app.route('/', methods=['POST'])
 def incoming():
 	logger.debug("received request. post data: {0}".format(request.get_data()))
