@@ -7,6 +7,14 @@ from viberbot.api.viber_requests import ViberFailedRequest
 from viberbot.api.viber_requests import ViberMessageRequest
 from viberbot.api.viber_requests import ViberSubscribedRequest
 from viberbot.api.viber_requests import ViberUnsubscribedRequest
+from viberbot.api.messages.text_message import TextMessage
+from viberbot.api.messages.picture_message import PictureMessage
+from viberbot.api.messages.video_message import VideoMessage
+from viberbot.api.messages.location_message import LocationMessage
+from viberbot.api.messages.contact_message import ContactMessage
+from viberbot.api.messages.keyboard_message import KeyboardMessage
+from viberbot.api.messages.rich_media_message import RichMediaMessage
+from viberbot.api.messages.data_types.keyboard import Keyboard, Button
 
 import time
 import logging
@@ -35,24 +43,99 @@ app.logger.debug(
     ">>> VIBER_AUTH_TOKEN φορτώθηκε ως: %s",
     os.environ.get("VIBER_AUTH_TOKEN")
 )
+HELP_KEYBOARD = Keyboard(
+    Buttons=[
+        Button(ActionType='reply', ActionBody='text', Text='✉️ Text'),
+        Button(ActionType='reply', ActionBody='pic', Text='🖼️ Picture'),
+        Button(ActionType='reply', ActionBody='loc', Text='📍 Location'),
+    ],
+    BgColor='#EFEFEF'
+)
 
+RICH_MEDIA = {
+    "Type": "rich_media",
+    "ButtonsGroupColumns": 6,
+    "ButtonsGroupRows": 2,
+    "BgColor": "#FFFFFF",
+    "Buttons": [
+        {
+            "Columns": 6, "Rows": 1,
+            "ActionType": "open-url",
+            "ActionBody": "https://example.com/item1",
+            "Image": "https://via.placeholder.com/300x150.png?text=Item+1",
+            "Text": "<font color=\"#494E67\">Item 1</font>"
+        },
+        {
+            "Columns": 6, "Rows": 1,
+            "ActionType": "open-url",
+            "ActionBody": "https://example.com/item2",
+            "Image": "https://via.placeholder.com/300x150.png?text=Item+2",
+            "Text": "<font color=\"#494E67\">Item 2</font>"
+        }
+    ]
+}
 @app.route('/', methods=['POST'])
 def incoming():
     viber_request = viber.parse_request(request.get_data())
     if isinstance(viber_request, ViberMessageRequest):
         user_text = viber_request.message.text.strip().lower()
 
-        # Προσαρμοσμένες απαντήσεις
-        if user_text in ['γεια', 'γειά', 'hello']:
-            reply_text = 'Γεια σου! Πώς μπορώ να σε βοηθήσω;'
-        elif user_text in ['αντίο', 'bye']:
-            reply_text = 'Καληνύχτα! Επικοινώνησε ξανά όταν θέλεις.'
-        else:
-            reply_text = 'Δεν σε κατάλαβα. Μπορείς να γράψεις "βοήθεια" για οδηγίες.'
+        # 1. Απλό text
+        if user_text == 'text':
+            reply = TextMessage(text="Αυτό είναι ένα απλό text μήνυμα!")
+            viber.send_messages(viber_request.sender.id, [reply])
 
-        message = TextMessage(text=reply_text)
-        viber.send_messages(viber_request.sender.id, [message])
+        # 2. Εικόνα
+        elif user_text == 'pic':
+            reply = PictureMessage(
+                text="Δες αυτή την εικόνα:",
+                media="https://via.placeholder.com/600x400.png?text=Test+Image",
+                thumbnail="https://via.placeholder.com/100x100.png?text=Thumb"
+            )
+            viber.send_messages(viber_request.sender.id, [reply])
+
+        # 3. Video
+        elif user_text == 'video':
+            reply = VideoMessage(
+                media="https://www.w3schools.com/html/mov_bbb.mp4",
+                size=150000,
+                thumbnail="https://via.placeholder.com/150.png?text=Video+Thumb",
+                text="Δοκιμαστικό βίντεο"
+            )
+            viber.send_messages(viber_request.sender.id, [reply])
+
+        # 4. Location
+        elif user_text == 'loc':
+            reply = LocationMessage(
+                location={"lat": 37.9838, "lon": 23.7275},
+                text="Εδώ είναι η Αθήνα!"
+            )
+            viber.send_messages(viber_request.sender.id, [reply])
+
+        # 5. Contact
+        elif user_text == 'contact':
+            reply = ContactMessage(
+                contact={"name": "Γιάννης Παπαδόπουλος", "phone_number": "+302112345678"}
+            )
+            viber.send_messages(viber_request.sender.id, [reply])
+
+        # 6. Custom Keyboard
+        elif user_text == 'keyboard':
+            reply = KeyboardMessage(text="Διάλεξε τύπο μηνύματος:", keyboard=HELP_KEYBOARD)
+            viber.send_messages(viber_request.sender.id, [reply])
+
+        # 7. Carousel
+        elif user_text == 'carousel':
+            reply = RichMediaMessage(rich_media=rich_media)
+            viber.send_messages(viber_request.sender.id, [reply])
+
+        # Default fallback
+        else:
+            reply = TextMessage(text="Γράψε ένα από τα: text, pic, video, loc, contact, keyboard, carousel")
+            viber.send_messages(viber_request.sender.id, [reply])
+
     return Response(status=200)
+
 
 
 def set_webhook(viber):
