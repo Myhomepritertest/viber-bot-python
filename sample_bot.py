@@ -14,7 +14,7 @@ from viberbot.api.messages.location_message import LocationMessage
 from viberbot.api.messages.contact_message import ContactMessage
 
 from viberbot.api.messages.rich_media_message import RichMediaMessage
-from viberbot.api.messages.data_types.keyboard import Keyboard, Button
+
 
 import time
 import logging
