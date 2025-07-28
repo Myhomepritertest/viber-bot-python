@@ -1,0 +1,5 @@
+flask
+viberbot==1.0.11
+gunicorn
+gspread
+oauth2client
