@@ -54,8 +54,9 @@ def save_order_to_sheet(user_id, full_name, order):
 def get_order_statistics():
     try:
         sheet = get_sheet()
-        records = sheet.get_all_records()
-        orders = [row['Παραγγελία'] for row in records if 'Παραγγελία' in row]
+        expected_headers = ["User ID", "Ονοματεπώνυμο", "Παραγγελία", "Timestamp"]
+        records = sheet.get_all_records(expected_headers=expected_headers)
+        orders = [row['Παραγγελία'] for row in records]
         counter = Counter(orders)
         stats_text = "\n".join([
             f"🍔 Burger: {counter.get('Burger', 0)}",
@@ -68,7 +69,7 @@ def get_order_statistics():
         print("❌ Error reading stats:", e)
         return "❌ Δεν ήταν δυνατή η ανάκτηση στατιστικών."
 
-# Keyboard
+# Πληκτρολόγιο επιλογών
 food_keyboard = {
     "Type": "keyboard",
     "DefaultHeight": True,
@@ -87,9 +88,18 @@ def incoming():
     if isinstance(viber_request, ViberMessageRequest):
         user_id = viber_request.sender.id
         full_name = viber_request.sender.name
-        user_text = viber_request.message.text.strip()
+        user_text = viber_request.message.text.strip().lower()
 
-        # Σε κάθε μήνυμα, ξεκινάμε νέα διαδικασία
+        # Αν η απάντηση είναι επιλογή φαγητού
+        if user_text in ['burger', 'pizza', 'salad', 'fries']:
+            order = user_text.capitalize()
+            save_order_to_sheet(user_id, full_name, order)
+            viber.send_messages(user_id, [
+                TextMessage(text=f"✅ Η παραγγελία σου για {order} καταχωρήθηκε! Ευχαριστούμε 🙌")
+            ])
+            return Response(status=200)
+
+        # Για κάθε άλλη περίπτωση (νέο μήνυμα, τυχαίο, κλπ)
         stats = get_order_statistics()
         user_sessions[user_id] = {"full_name": full_name}
         viber.send_messages(user_id, [
@@ -102,7 +112,7 @@ def incoming():
 
 # Webhook
 def set_webhook(viber):
-    viber.set_webhook('https://your-render-url.onrender.com')
+    viber.set_webhook('https://your-render-url.onrender.com')  # Βάλε το δικό σου URL
 
 if __name__ == "__main__":
     scheduler = sched.scheduler(time.time, time.sleep)
