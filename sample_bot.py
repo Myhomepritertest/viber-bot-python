@@ -10,6 +10,7 @@ import sched
 import threading
 import os
 from datetime import datetime
+from collections import Counter
 
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -30,7 +31,6 @@ viber = Api(BotConfiguration(
     auth_token=os.environ['VIBER_AUTH_TOKEN']
 ))
 
-# Προσωρινή μνήμη χρηστών
 user_sessions = {}
 
 # Google Sheets setup
@@ -41,17 +41,34 @@ def get_sheet():
     client = gspread.authorize(creds)
     return client.open("Παραγγελίες").sheet1
 
-def save_order_to_sheet(user_id, full_name, violation_date, order):
+def save_order_to_sheet(user_id, full_name, order):
     try:
         sheet = get_sheet()
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        row = [user_id, full_name, violation_date, order, now]
+        row = [user_id, full_name, order, now]
         sheet.append_row(row)
         print("✅ Order saved:", row)
     except Exception as e:
         print("❌ Error saving to sheet:", str(e))
 
-# Πληκτρολόγιο επιλογών φαγητού
+def get_order_statistics():
+    try:
+        sheet = get_sheet()
+        records = sheet.get_all_records()
+        orders = [row['Παραγγελία'] for row in records if 'Παραγγελία' in row]
+        counter = Counter(orders)
+        stats_text = "\n".join([
+            f"🍔 Burger: {counter.get('Burger', 0)}",
+            f"🍟 Πατάτες: {counter.get('Fries', 0)}",
+            f"🥗 Σαλάτα: {counter.get('Salad', 0)}",
+            f"🍕 Pizza: {counter.get('Pizza', 0)}"
+        ])
+        return stats_text
+    except Exception as e:
+        print("❌ Error reading stats:", e)
+        return "❌ Δεν ήταν δυνατή η ανάκτηση στατιστικών."
+
+# Keyboard
 food_keyboard = {
     "Type": "keyboard",
     "DefaultHeight": True,
@@ -72,45 +89,12 @@ def incoming():
         full_name = viber_request.sender.name
         user_text = viber_request.message.text.strip()
 
-        # Αν στείλει /start
-        if user_text.lower() == '/start':
-            user_sessions[user_id] = {"step": "violation_date", "full_name": full_name}
-            viber.send_messages(user_id, [
-                TextMessage(text="📅 Ποια είναι η *ημερομηνία παράβασης*; (π.χ. 2025-07-28)")
-            ])
-            return Response(status=200)
-
-        # Αν είναι ήδη σε διαδικασία
-        if user_id in user_sessions:
-            session = user_sessions[user_id]
-            step = session.get("step")
-
-            if step == "violation_date":
-                session["violation_date"] = user_text
-                session["step"] = "order"
-                viber.send_messages(user_id, [
-                    TextMessage(text="🍽 Τι θα ήθελες να παραγγείλεις;", keyboard=food_keyboard)
-                ])
-                return Response(status=200)
-
-            elif step == "order" and user_text.lower() in ['burger', 'pizza', 'salad', 'fries']:
-                order = user_text.capitalize()
-                save_order_to_sheet(
-                    user_id=user_id,
-                    full_name=session.get("full_name"),
-                    violation_date=session.get("violation_date"),
-                    order=order
-                )
-                del user_sessions[user_id]
-                viber.send_messages(user_id, [
-                    TextMessage(text=f"✅ Η παραγγελία σου για {order} καταχωρήθηκε!")
-                ])
-                return Response(status=200)
-
-        # Αν στείλει κάτι άκυρο ή είναι εκτός ροής → επανεκκίνηση
-        user_sessions[user_id] = {"step": "violation_date", "full_name": full_name}
+        # Σε κάθε μήνυμα, ξεκινάμε νέα διαδικασία
+        stats = get_order_statistics()
+        user_sessions[user_id] = {"full_name": full_name}
         viber.send_messages(user_id, [
-            TextMessage(text="🔄 Δεν κατάλαβα. Ξεκινάμε από την αρχή.\n\n📅 Ποια είναι η *ημερομηνία παράβασης*; (π.χ. 2025-07-28)")
+            TextMessage(text=f"📊 Μέχρι στιγμής έχουν παραγγείλει:\n{stats}\n\nΕσύ τι θα ήθελες;"),
+            TextMessage(text="🍽 Επίλεξε από το μενού:", keyboard=food_keyboard)
         ])
         return Response(status=200)
 
@@ -118,7 +102,7 @@ def incoming():
 
 # Webhook
 def set_webhook(viber):
-    viber.set_webhook('https://your-render-url.onrender.com')  # Αντικατάστησέ το με το URL σου
+    viber.set_webhook('https://your-render-url.onrender.com')
 
 if __name__ == "__main__":
     scheduler = sched.scheduler(time.time, time.sleep)
