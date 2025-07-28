@@ -2,18 +2,7 @@ from flask import Flask, request, Response
 from viberbot import Api
 from viberbot.api.bot_configuration import BotConfiguration
 from viberbot.api.messages.text_message import TextMessage
-from viberbot.api.viber_requests import (
-    ViberConversationStartedRequest,
-    ViberFailedRequest,
-    ViberMessageRequest,
-    ViberSubscribedRequest,
-    ViberUnsubscribedRequest,
-)
-from viberbot.api.messages.picture_message import PictureMessage
-from viberbot.api.messages.video_message import VideoMessage
-from viberbot.api.messages.location_message import LocationMessage
-from viberbot.api.messages.contact_message import ContactMessage
-from viberbot.api.messages.rich_media_message import RichMediaMessage
+from viberbot.api.viber_requests import ViberMessageRequest
 
 import time
 import logging
@@ -39,43 +28,15 @@ viber = Api(BotConfiguration(
 
 app.logger.debug(">>> VIBER_AUTH_TOKEN φορτώθηκε ως: %s", os.environ.get("VIBER_AUTH_TOKEN"))
 
-# 🟩 Custom keyboard (απλό μενού)
-custom_keyboard = {
+# 🍽 Custom Keyboard με 4 φαγητά
+food_keyboard = {
     "Type": "keyboard",
     "DefaultHeight": True,
     "Buttons": [
-        {"Columns": 3, "Rows": 1, "Text": "📷 Εικόνα", "ActionType": "reply", "ActionBody": "pic"},
-        {"Columns": 3, "Rows": 1, "Text": "🎥 Βίντεο", "ActionType": "reply", "ActionBody": "video"},
-        {"Columns": 3, "Rows": 1, "Text": "📍 Τοποθεσία", "ActionType": "reply", "ActionBody": "loc"},
-        {"Columns": 3, "Rows": 1, "Text": "📇 Επαφή", "ActionType": "reply", "ActionBody": "contact"},
-        {"Columns": 3, "Rows": 1, "Text": "🎠 Carousel", "ActionType": "reply", "ActionBody": "carousel"},
-    ]
-}
-
-# 🟩 Rich media (carousel)
-rich_media = {
-    "Type": "rich_media",
-    "ButtonsGroupColumns": 6,
-    "ButtonsGroupRows": 3,
-    "BgColor": "#FFFFFF",
-    "Buttons": [
-        {
-            "Columns": 6,
-            "Rows": 2,
-            "ActionType": "open-url",
-            "ActionBody": "https://example.com/item1",
-            "Image": "https://via.placeholder.com/600x300.png?text=Item+1"
-        },
-        {
-            "Columns": 6,
-            "Rows": 1,
-            "Text": "Item 1 - Δες περισσότερα",
-            "ActionType": "open-url",
-            "ActionBody": "https://example.com/item1",
-            "TextSize": "medium",
-            "TextVAlign": "middle",
-            "TextHAlign": "center"
-        }
+        {"Columns": 3, "Rows": 1, "Text": "🍔 Burger", "ActionType": "reply", "ActionBody": "burger"},
+        {"Columns": 3, "Rows": 1, "Text": "🍕 Pizza", "ActionType": "reply", "ActionBody": "pizza"},
+        {"Columns": 3, "Rows": 1, "Text": "🥗 Σαλάτα", "ActionType": "reply", "ActionBody": "salad"},
+        {"Columns": 3, "Rows": 1, "Text": "🍟 Πατάτες", "ActionType": "reply", "ActionBody": "fries"}
     ]
 }
 
@@ -88,52 +49,39 @@ def incoming():
 
         if user_text == '/start':
             viber.send_messages(viber_request.sender.id, [
-                TextMessage(text="📲 Καλωσήρθες! Διάλεξε τι θέλεις:", keyboard=custom_keyboard)
+                TextMessage(text="🍽 Τι θα ήθελες να παραγγείλεις;", keyboard=food_keyboard)
             ])
 
-        elif user_text == 'pic':
+        elif user_text == 'burger':
             viber.send_messages(viber_request.sender.id, [
-                PictureMessage(
-                    text="Δες αυτή την εικόνα:",
-                    media="https://via.placeholder.com/600x400.png?text=Test+Image",
-                    thumbnail="https://via.placeholder.com/100x100.png?text=Thumb"
-                )
+                TextMessage(text="🍔 Επιλέχθηκε Burger. Η παραγγελία σου καταχωρήθηκε!")
             ])
 
-        elif user_text == 'video':
+        elif user_text == 'pizza':
             viber.send_messages(viber_request.sender.id, [
-                VideoMessage(
-                    media="https://www.w3schools.com/html/mov_bbb.mp4",
-                    size=150000,
-                    thumbnail="https://via.placeholder.com/150.png?text=Video+Thumb",
-                    text="Δοκιμαστικό βίντεο"
-                )
+                TextMessage(text="🍕 Επιλέχθηκε Pizza. Η παραγγελία σου καταχωρήθηκε!")
             ])
 
-        elif user_text == 'loc':
+        elif user_text == 'salad':
             viber.send_messages(viber_request.sender.id, [
-                LocationMessage(location={"lat": 37.9838, "lon": 23.7275})
+                TextMessage(text="🥗 Επιλέχθηκε Σαλάτα. Η παραγγελία σου καταχωρήθηκε!")
             ])
 
-        elif user_text == 'contact':
+        elif user_text == 'fries':
             viber.send_messages(viber_request.sender.id, [
-                ContactMessage(contact={"name": "Γιάννης Παπαδόπουλος", "phone_number": "+302112345678"})
-            ])
-
-        elif user_text == 'carousel':
-            viber.send_messages(viber_request.sender.id, [
-                RichMediaMessage(rich_media=rich_media)
+                TextMessage(text="🍟 Επιλέχθηκαν Πατάτες. Η παραγγελία σου καταχωρήθηκε!")
             ])
 
         else:
             viber.send_messages(viber_request.sender.id, [
-                TextMessage(text="📝 Γράψε `/start` ή επίλεξε μία από τις εντολές.")
+                TextMessage(text="❓ Δεν κατάλαβα. Γράψε `/start` για να ξεκινήσεις νέα παραγγελία.")
             ])
 
     return Response(status=200)
 
+# 🔗 Set webhook (τρέχει στην αρχή)
 def set_webhook(viber):
-	viber.set_webhook('https://mybotwebserver.com:8443/')
+	viber.set_webhook('https://your-bot-url.onrender.com/')  # άλλαξε το URL με το δικό σου!
 
 if __name__ == "__main__":
 	scheduler = sched.scheduler(time.time, time.sleep)
@@ -141,5 +89,6 @@ if __name__ == "__main__":
 	t = threading.Thread(target=scheduler.run)
 	t.start()
 
-	context = ('server.crt', 'server.key')
+	# Για local με SSL (χρήσιμο σε dev)
+	context = ('server.crt', 'server.key')  # αν έχεις πιστοποιητικό
 	app.run(host='0.0.0.0', port=8443, debug=True, ssl_context=context)
