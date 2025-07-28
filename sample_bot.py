@@ -34,23 +34,30 @@ app.logger.debug(">>> VIBER_AUTH_TOKEN φορτώθηκε ως: %s", os.environ.
 
 # Google Sheets setup
 def get_sheet():
+    print("🔐 0: Loading Google credentials...")
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_path = os.getenv("GOOGLE_CREDS_PATH", "/etc/secrets/viber-bot-writer-15e183a8df85.json")
+    print(f"📁 0.1: Using creds path: {creds_path}")
     creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
     client = gspread.authorize(creds)
-    sheet = client.open("Παραγγελίες").sheet1  # Φύλλο με όνομα "Παραγγελίες"
+    print("📗 0.2: Opening spreadsheet 'Παραγγελίες'")
+    sheet = client.open("Παραγγελίες").sheet1
     return sheet
 
 def save_order_to_sheet(user_id, order):
     try:
+        print("📄 1: Trying to load sheet...")
         sheet = get_sheet()
+        print("📄 2: Got sheet successfully.")
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"📄 3: Appending row: {[user_id, order, now]}")
         sheet.append_row([user_id, order, now])
-        print("✅ Order saved to Google Sheets")
+        print("✅ 4: Order saved to Google Sheets!")
     except Exception as e:
         import traceback
         print("❌ Error writing to sheet:")
         traceback.print_exc()
+        print("⛔ Exception message:", str(e))
 
 # Custom Keyboard με 4 φαγητά
 food_keyboard = {
@@ -109,7 +116,7 @@ def incoming():
 
 # Webhook για το Viber
 def set_webhook(viber):
-    viber.set_webhook('https://your-render-url.onrender.com/')  # άλλαξε το URL σου εδώ!
+    viber.set_webhook('https://your-render-url.onrender.com/')  # Άλλαξέ το με το δικό σου Render URL
 
 if __name__ == "__main__":
     scheduler = sched.scheduler(time.time, time.sleep)
@@ -117,6 +124,6 @@ if __name__ == "__main__":
     t = threading.Thread(target=scheduler.run)
     t.start()
 
-    # Αν έχεις SSL τοπικά (dev mode)
-    context = ('server.crt', 'server.key')
+    # Αν έχεις SSL για local δοκιμές
+    context = ('server.crt', 'server.key') if os.path.exists('server.crt') else None
     app.run(host='0.0.0.0', port=8443, debug=True, ssl_context=context)
