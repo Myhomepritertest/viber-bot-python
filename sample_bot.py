@@ -34,12 +34,11 @@ app.logger.debug(">>> VIBER_AUTH_TOKEN φορτώθηκε ως: %s", os.environ.
 
 # Google Sheets setup
 def get_sheet():
-    scope = ["https://spreadsheets.google.com/feeds",
-             "https://www.googleapis.com/auth/drive"]
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_path = os.getenv("GOOGLE_CREDS_PATH", "/etc/secrets/viber-bot-writer-15e183a8df85.json")
     creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
     client = gspread.authorize(creds)
-    sheet = client.open("Παραγγελίες").sheet1  # Το όνομα του spreadsheet σου
+    sheet = client.open("Παραγγελίες").sheet1  # Φύλλο με όνομα "Παραγγελίες"
     return sheet
 
 def save_order_to_sheet(user_id, order):
@@ -49,9 +48,11 @@ def save_order_to_sheet(user_id, order):
         sheet.append_row([user_id, order, now])
         print("✅ Order saved to Google Sheets")
     except Exception as e:
-        print("❌ Error writing to sheet:", e)
+        import traceback
+        print("❌ Error writing to sheet:")
+        traceback.print_exc()
 
-# 🍽 Custom Keyboard με 4 φαγητά
+# Custom Keyboard με 4 φαγητά
 food_keyboard = {
     "Type": "keyboard",
     "DefaultHeight": True,
@@ -106,9 +107,9 @@ def incoming():
 
     return Response(status=200)
 
-# 🔗 Set webhook (τρέχει στην αρχή)
+# Webhook για το Viber
 def set_webhook(viber):
-    viber.set_webhook('https://your-bot-url.onrender.com/')  # Άλλαξε το URL με το δικό σου!
+    viber.set_webhook('https://your-render-url.onrender.com/')  # άλλαξε το URL σου εδώ!
 
 if __name__ == "__main__":
     scheduler = sched.scheduler(time.time, time.sleep)
@@ -116,6 +117,6 @@ if __name__ == "__main__":
     t = threading.Thread(target=scheduler.run)
     t.start()
 
-    # Για local με SSL (χρήσιμο σε dev)
-    context = ('server.crt', 'server.key')  # αν έχεις πιστοποιητικό
+    # Αν έχεις SSL τοπικά (dev mode)
+    context = ('server.crt', 'server.key')
     app.run(host='0.0.0.0', port=8443, debug=True, ssl_context=context)
