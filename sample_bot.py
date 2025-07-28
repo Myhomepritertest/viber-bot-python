@@ -30,7 +30,7 @@ viber = Api(BotConfiguration(
     auth_token=os.environ['VIBER_AUTH_TOKEN']
 ))
 
-# Προσωρινή αποθήκευση στοιχείων χρηστών
+# Προσωρινή μνήμη χρήστη
 user_sessions = {}
 
 # Google Sheets setup
@@ -52,7 +52,7 @@ def save_order_to_sheet(user_id, order, first_name=None, last_name=None, violati
     except Exception as e:
         print("❌ Error saving to sheet:", str(e))
 
-# Custom Keyboard
+# Food keyboard
 food_keyboard = {
     "Type": "keyboard",
     "DefaultHeight": True,
@@ -79,6 +79,7 @@ def incoming():
             ])
             return Response(status=200)
 
+        # Step-by-step user input
         if user_id in user_sessions:
             session = user_sessions[user_id]
             step = session.get("step")
@@ -89,6 +90,7 @@ def incoming():
                 viber.send_messages(user_id, [
                     TextMessage(text="📝 Ποιο είναι το *επώνυμό* σου;")
                 ])
+                return Response(status=200)
 
             elif step == "last_name":
                 session["last_name"] = user_text
@@ -96,6 +98,7 @@ def incoming():
                 viber.send_messages(user_id, [
                     TextMessage(text="📅 Ποια είναι η *ημερομηνία παράβασης* (π.χ. 2025-07-28);")
                 ])
+                return Response(status=200)
 
             elif step == "violation_date":
                 session["violation_date"] = user_text
@@ -103,34 +106,33 @@ def incoming():
                 viber.send_messages(user_id, [
                     TextMessage(text="🍽 Τι θα ήθελες να παραγγείλεις;", keyboard=food_keyboard)
                 ])
-            return Response(status=200)
+                return Response(status=200)
 
-        elif user_text.lower() in ['burger', 'pizza', 'salad', 'fries']:
-            if user_id in user_sessions:
-                session = user_sessions.pop(user_id)
+            elif step == "order" and user_text.lower() in ['burger', 'pizza', 'salad', 'fries']:
+                order = user_text.capitalize()
                 save_order_to_sheet(
                     user_id=user_id,
-                    order=user_text.capitalize(),
+                    order=order,
                     first_name=session.get("first_name"),
                     last_name=session.get("last_name"),
                     violation_date=session.get("violation_date")
                 )
+                del user_sessions[user_id]
                 viber.send_messages(user_id, [
-                    TextMessage(text=f"✅ Η παραγγελία σου για {user_text.capitalize()} καταχωρήθηκε!")
+                    TextMessage(text=f"✅ Η παραγγελία σου για {order} καταχωρήθηκε!")
                 ])
-            else:
-                viber.send_messages(user_id, [
-                    TextMessage(text="❗ Πρέπει πρώτα να ξεκινήσεις με `/start`.")
-                ])
-        else:
-            viber.send_messages(user_id, [
-                TextMessage(text="❓ Δεν κατάλαβα. Γράψε `/start` για να ξεκινήσεις νέα παραγγελία.")
-            ])
+                return Response(status=200)
+
+        # If none of the above matched
+        viber.send_messages(user_id, [
+            TextMessage(text="❓ Δεν κατάλαβα. Γράψε `/start` για να ξεκινήσεις.")
+        ])
+
     return Response(status=200)
 
-# Webhook
+# Webhook για Viber
 def set_webhook(viber):
-    viber.set_webhook('https://your-render-url.onrender.com/')  # άλλαξε το URL
+    viber.set_webhook('https://your-render-url.onrender.com')  # Αντικατάστησε με το δικό σου URL
 
 if __name__ == "__main__":
     scheduler = sched.scheduler(time.time, time.sleep)
