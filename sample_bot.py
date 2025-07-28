@@ -9,6 +9,10 @@ import logging
 import sched
 import threading
 import os
+from datetime import datetime
+
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 # Logging setup
 logger = logging.getLogger()
@@ -27,6 +31,25 @@ viber = Api(BotConfiguration(
 ))
 
 app.logger.debug(">>> VIBER_AUTH_TOKEN φορτώθηκε ως: %s", os.environ.get("VIBER_AUTH_TOKEN"))
+
+# Google Sheets setup
+def get_sheet():
+    scope = ["https://spreadsheets.google.com/feeds",
+             "https://www.googleapis.com/auth/drive"]
+    creds_path = os.getenv("GOOGLE_CREDS_PATH", "/etc/secrets/viber-bot-writer-15e183a8df85.json")
+    creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
+    client = gspread.authorize(creds)
+    sheet = client.open("Παραγγελίες").sheet1  # Το όνομα του spreadsheet σου
+    return sheet
+
+def save_order_to_sheet(user_id, order):
+    try:
+        sheet = get_sheet()
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        sheet.append_row([user_id, order, now])
+        print("✅ Order saved to Google Sheets")
+    except Exception as e:
+        print("❌ Error writing to sheet:", e)
 
 # 🍽 Custom Keyboard με 4 φαγητά
 food_keyboard = {
@@ -53,21 +76,25 @@ def incoming():
             ])
 
         elif user_text == 'burger':
+            save_order_to_sheet(viber_request.sender.id, "Burger")
             viber.send_messages(viber_request.sender.id, [
                 TextMessage(text="🍔 Επιλέχθηκε Burger. Η παραγγελία σου καταχωρήθηκε!")
             ])
 
         elif user_text == 'pizza':
+            save_order_to_sheet(viber_request.sender.id, "Pizza")
             viber.send_messages(viber_request.sender.id, [
                 TextMessage(text="🍕 Επιλέχθηκε Pizza. Η παραγγελία σου καταχωρήθηκε!")
             ])
 
         elif user_text == 'salad':
+            save_order_to_sheet(viber_request.sender.id, "Salad")
             viber.send_messages(viber_request.sender.id, [
                 TextMessage(text="🥗 Επιλέχθηκε Σαλάτα. Η παραγγελία σου καταχωρήθηκε!")
             ])
 
         elif user_text == 'fries':
+            save_order_to_sheet(viber_request.sender.id, "Fries")
             viber.send_messages(viber_request.sender.id, [
                 TextMessage(text="🍟 Επιλέχθηκαν Πατάτες. Η παραγγελία σου καταχωρήθηκε!")
             ])
@@ -81,14 +108,14 @@ def incoming():
 
 # 🔗 Set webhook (τρέχει στην αρχή)
 def set_webhook(viber):
-	viber.set_webhook('https://your-bot-url.onrender.com/')  # άλλαξε το URL με το δικό σου!
+    viber.set_webhook('https://your-bot-url.onrender.com/')  # Άλλαξε το URL με το δικό σου!
 
 if __name__ == "__main__":
-	scheduler = sched.scheduler(time.time, time.sleep)
-	scheduler.enter(5, 1, set_webhook, (viber,))
-	t = threading.Thread(target=scheduler.run)
-	t.start()
+    scheduler = sched.scheduler(time.time, time.sleep)
+    scheduler.enter(5, 1, set_webhook, (viber,))
+    t = threading.Thread(target=scheduler.run)
+    t.start()
 
-	# Για local με SSL (χρήσιμο σε dev)
-	context = ('server.crt', 'server.key')  # αν έχεις πιστοποιητικό
-	app.run(host='0.0.0.0', port=8443, debug=True, ssl_context=context)
+    # Για local με SSL (χρήσιμο σε dev)
+    context = ('server.crt', 'server.key')  # αν έχεις πιστοποιητικό
+    app.run(host='0.0.0.0', port=8443, debug=True, ssl_context=context)
