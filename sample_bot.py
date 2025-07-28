@@ -30,36 +30,29 @@ viber = Api(BotConfiguration(
     auth_token=os.environ['VIBER_AUTH_TOKEN']
 ))
 
-app.logger.debug(">>> VIBER_AUTH_TOKEN φορτώθηκε ως: %s", os.environ.get("VIBER_AUTH_TOKEN"))
+# Προσωρινή αποθήκευση στοιχείων χρηστών
+user_sessions = {}
 
 # Google Sheets setup
 def get_sheet():
-    print("🔐 0: Loading Google credentials...")
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_path = os.getenv("GOOGLE_CREDS_PATH", "/etc/secrets/viber-bot-writer-15e183a8df85.json")
-    print(f"📁 0.1: Using creds path: {creds_path}")
     creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
     client = gspread.authorize(creds)
-    print("📗 0.2: Opening spreadsheet 'Παραγγελίες'")
     sheet = client.open("Παραγγελίες").sheet1
     return sheet
 
-def save_order_to_sheet(user_id, order):
+def save_order_to_sheet(user_id, order, first_name=None, last_name=None, violation_date=None):
     try:
-        print("📄 1: Trying to load sheet...")
         sheet = get_sheet()
-        print("📄 2: Got sheet successfully.")
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"📄 3: Appending row: {[user_id, order, now]}")
-        sheet.append_row([user_id, order, now])
-        print("✅ 4: Order saved to Google Sheets!")
+        row = [user_id, first_name, last_name, violation_date, order, now]
+        sheet.append_row(row)
+        print("✅ Order saved:", row)
     except Exception as e:
-        import traceback
-        print("❌ Error writing to sheet:")
-        traceback.print_exc()
-        print("⛔ Exception message:", str(e))
+        print("❌ Error saving to sheet:", str(e))
 
-# Custom Keyboard με 4 φαγητά
+# Custom Keyboard
 food_keyboard = {
     "Type": "keyboard",
     "DefaultHeight": True,
@@ -76,47 +69,68 @@ def incoming():
     viber_request = viber.parse_request(request.get_data())
 
     if isinstance(viber_request, ViberMessageRequest):
-        user_text = viber_request.message.text.strip().lower()
+        user_id = viber_request.sender.id
+        user_text = viber_request.message.text.strip()
 
-        if user_text == '/start':
-            viber.send_messages(viber_request.sender.id, [
-                TextMessage(text="🍽 Τι θα ήθελες να παραγγείλεις;", keyboard=food_keyboard)
+        if user_text.lower() == '/start':
+            user_sessions[user_id] = {"step": "first_name"}
+            viber.send_messages(user_id, [
+                TextMessage(text="📝 Ποιο είναι το *όνομά* σου;")
             ])
+            return Response(status=200)
 
-        elif user_text == 'burger':
-            save_order_to_sheet(viber_request.sender.id, "Burger")
-            viber.send_messages(viber_request.sender.id, [
-                TextMessage(text="🍔 Επιλέχθηκε Burger. Η παραγγελία σου καταχωρήθηκε!")
-            ])
+        if user_id in user_sessions:
+            session = user_sessions[user_id]
+            step = session.get("step")
 
-        elif user_text == 'pizza':
-            save_order_to_sheet(viber_request.sender.id, "Pizza")
-            viber.send_messages(viber_request.sender.id, [
-                TextMessage(text="🍕 Επιλέχθηκε Pizza. Η παραγγελία σου καταχωρήθηκε!")
-            ])
+            if step == "first_name":
+                session["first_name"] = user_text
+                session["step"] = "last_name"
+                viber.send_messages(user_id, [
+                    TextMessage(text="📝 Ποιο είναι το *επώνυμό* σου;")
+                ])
 
-        elif user_text == 'salad':
-            save_order_to_sheet(viber_request.sender.id, "Salad")
-            viber.send_messages(viber_request.sender.id, [
-                TextMessage(text="🥗 Επιλέχθηκε Σαλάτα. Η παραγγελία σου καταχωρήθηκε!")
-            ])
+            elif step == "last_name":
+                session["last_name"] = user_text
+                session["step"] = "violation_date"
+                viber.send_messages(user_id, [
+                    TextMessage(text="📅 Ποια είναι η *ημερομηνία παράβασης* (π.χ. 2025-07-28);")
+                ])
 
-        elif user_text == 'fries':
-            save_order_to_sheet(viber_request.sender.id, "Fries")
-            viber.send_messages(viber_request.sender.id, [
-                TextMessage(text="🍟 Επιλέχθηκαν Πατάτες. Η παραγγελία σου καταχωρήθηκε!")
-            ])
+            elif step == "violation_date":
+                session["violation_date"] = user_text
+                session["step"] = "order"
+                viber.send_messages(user_id, [
+                    TextMessage(text="🍽 Τι θα ήθελες να παραγγείλεις;", keyboard=food_keyboard)
+                ])
+            return Response(status=200)
 
+        elif user_text.lower() in ['burger', 'pizza', 'salad', 'fries']:
+            if user_id in user_sessions:
+                session = user_sessions.pop(user_id)
+                save_order_to_sheet(
+                    user_id=user_id,
+                    order=user_text.capitalize(),
+                    first_name=session.get("first_name"),
+                    last_name=session.get("last_name"),
+                    violation_date=session.get("violation_date")
+                )
+                viber.send_messages(user_id, [
+                    TextMessage(text=f"✅ Η παραγγελία σου για {user_text.capitalize()} καταχωρήθηκε!")
+                ])
+            else:
+                viber.send_messages(user_id, [
+                    TextMessage(text="❗ Πρέπει πρώτα να ξεκινήσεις με `/start`.")
+                ])
         else:
-            viber.send_messages(viber_request.sender.id, [
+            viber.send_messages(user_id, [
                 TextMessage(text="❓ Δεν κατάλαβα. Γράψε `/start` για να ξεκινήσεις νέα παραγγελία.")
             ])
-
     return Response(status=200)
 
-# Webhook για το Viber
+# Webhook
 def set_webhook(viber):
-    viber.set_webhook('https://your-render-url.onrender.com/')  # Άλλαξέ το με το δικό σου Render URL
+    viber.set_webhook('https://your-render-url.onrender.com/')  # άλλαξε το URL
 
 if __name__ == "__main__":
     scheduler = sched.scheduler(time.time, time.sleep)
@@ -124,6 +138,5 @@ if __name__ == "__main__":
     t = threading.Thread(target=scheduler.run)
     t.start()
 
-    # Αν έχεις SSL για local δοκιμές
     context = ('server.crt', 'server.key') if os.path.exists('server.crt') else None
     app.run(host='0.0.0.0', port=8443, debug=True, ssl_context=context)
