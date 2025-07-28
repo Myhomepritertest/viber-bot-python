@@ -30,7 +30,7 @@ viber = Api(BotConfiguration(
     auth_token=os.environ['VIBER_AUTH_TOKEN']
 ))
 
-# Προσωρινή μνήμη χρήστη
+# Προσωρινή μνήμη χρηστών
 user_sessions = {}
 
 # Google Sheets setup
@@ -51,7 +51,7 @@ def save_order_to_sheet(user_id, full_name, violation_date, order):
     except Exception as e:
         print("❌ Error saving to sheet:", str(e))
 
-# Keyboard
+# Πληκτρολόγιο επιλογών φαγητού
 food_keyboard = {
     "Type": "keyboard",
     "DefaultHeight": True,
@@ -72,6 +72,7 @@ def incoming():
         full_name = viber_request.sender.name
         user_text = viber_request.message.text.strip()
 
+        # Αν στείλει /start
         if user_text.lower() == '/start':
             user_sessions[user_id] = {"step": "violation_date", "full_name": full_name}
             viber.send_messages(user_id, [
@@ -79,6 +80,7 @@ def incoming():
             ])
             return Response(status=200)
 
+        # Αν είναι ήδη σε διαδικασία
         if user_id in user_sessions:
             session = user_sessions[user_id]
             step = session.get("step")
@@ -105,16 +107,18 @@ def incoming():
                 ])
                 return Response(status=200)
 
-        # Εάν δεν αναγνωρίζεται
+        # Αν στείλει κάτι άκυρο ή είναι εκτός ροής → επανεκκίνηση
+        user_sessions[user_id] = {"step": "violation_date", "full_name": full_name}
         viber.send_messages(user_id, [
-            TextMessage(text="❓ Δεν κατάλαβα. Στείλε `/start` για να ξεκινήσεις.")
+            TextMessage(text="🔄 Δεν κατάλαβα. Ξεκινάμε από την αρχή.\n\n📅 Ποια είναι η *ημερομηνία παράβασης*; (π.χ. 2025-07-28)")
         ])
+        return Response(status=200)
 
     return Response(status=200)
 
 # Webhook
 def set_webhook(viber):
-    viber.set_webhook('https://your-render-url.onrender.com')  # Βάλε το δικό σου URL εδώ
+    viber.set_webhook('https://your-render-url.onrender.com')  # Αντικατάστησέ το με το URL σου
 
 if __name__ == "__main__":
     scheduler = sched.scheduler(time.time, time.sleep)
